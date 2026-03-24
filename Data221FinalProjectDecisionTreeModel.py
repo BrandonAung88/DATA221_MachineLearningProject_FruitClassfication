@@ -32,3 +32,8 @@ def load_images_from_folder(folder):
 X_train, y_train = load_images_from_folder("Project_Train")
 X_val, y_val = load_images_from_folder("Project_Val")
 X_test, y_test = load_images_from_folder("Project_Test")
+
+# Normalize pixel values to between 0 and 1
+X_train = X_train / 255.0
+X_val = X_val / 255.0
+X_test = X_test / 255.0
