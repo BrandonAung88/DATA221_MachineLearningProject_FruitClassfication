@@ -2,6 +2,7 @@ import os
 import numpy as np
 from PIL import Image
 from sklearn.preprocessing import LabelEncoder
+from sklearn.tree import DecisionTreeClassifier
 
 
 def load_images_from_folder(folder):
@@ -56,3 +57,8 @@ le = LabelEncoder()
 y_train_enc = le.fit_transform(y_train)
 y_val_enc = le.transform(y_val)
 y_test_enc = le.transform(y_test)
+
+# Train model random_state is set to 42 just to make it a fixed seed so results are reproducible.
+# Without random_state, every time you run the command you might get slightly different trees and therefore slightly different predictions.
+model = DecisionTreeClassifier(random_state=42)
+model.fit(X_train_flat, y_train_enc)
