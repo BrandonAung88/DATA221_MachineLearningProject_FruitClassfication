@@ -1,6 +1,7 @@
 import os
 import numpy as np
 from PIL import Image
+from sklearn.preprocessing import LabelEncoder
 
 
 def load_images_from_folder(folder):
@@ -49,3 +50,9 @@ X_test_flat = X_test.reshape(len(X_test), -1)
 
 #Since the images are(100, 100, 3) → total pixels = 100 * 100 * 3 = 30,000,
 # So after flattening, each image becomes a 1D vector of length 30,000.
+
+# Encode labels which converts categorical labels (strings) into numbers because DecisionTreeClassifier cannot work with string labels directly
+le = LabelEncoder()
+y_train_enc = le.fit_transform(y_train)
+y_val_enc = le.transform(y_val)
+y_test_enc = le.transform(y_test)
