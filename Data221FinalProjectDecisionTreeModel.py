@@ -3,6 +3,7 @@ import numpy as np
 from PIL import Image
 from sklearn.preprocessing import LabelEncoder
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import classification_report, confusion_matrix
 
 
 def load_images_from_folder(folder):
@@ -62,3 +63,11 @@ y_test_enc = le.transform(y_test)
 # Without random_state, every time you run the command you might get slightly different trees and therefore slightly different predictions.
 model = DecisionTreeClassifier(random_state=42)
 model.fit(X_train_flat, y_train_enc)
+
+y_pred = model.predict(X_test_flat)
+
+print("Confusion Matrix:")#row 1:apple , row2: avocado, row 3: banana, row 4: orange
+cm = confusion_matrix(y_test_enc, y_pred)
+print(cm)
+print("\nClassification Report:")
+print(classification_report(y_test_enc, y_pred, target_names=le.classes_))
