@@ -85,3 +85,17 @@ for i in range(len(cm)):
 plt.xlabel("Predicted")
 plt.ylabel("Actual")
 plt.show()
+
+# Misclassified images
+misclassified = np.where(y_pred != y_test_enc)[0]
+
+print("Number of misclassified images:", len(misclassified))
+
+for i in misclassified[:5]:#first 5 images that are misclassified
+    plt.imshow(X_test[i])
+    plt.title(f"True: {le.inverse_transform([y_test_enc[i]])[0]}, " f"Pred: {le.inverse_transform([y_pred[i]])[0]}")
+    #inverse_transform decodes (numbers → words) because le(label encoder) does the opposite
+    # We need this to convert the model’s numeric predictions back into human-readable labels
+    # (ex: 0 → "Apple") so we can understand and display the results.
+    plt.axis('off')
+    plt.show()
