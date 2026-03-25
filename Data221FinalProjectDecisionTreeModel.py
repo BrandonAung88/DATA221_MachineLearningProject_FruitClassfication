@@ -4,6 +4,7 @@ from PIL import Image
 from sklearn.preprocessing import LabelEncoder
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import classification_report, confusion_matrix
+import matplotlib.pyplot as plt
 
 
 def load_images_from_folder(folder):
@@ -66,8 +67,21 @@ model.fit(X_train_flat, y_train_enc)
 
 y_pred = model.predict(X_test_flat)
 
-print("Confusion Matrix:")#row 1:apple , row2: avocado, row 3: banana, row 4: orange
+# print("Confusion Matrix:")#row 1:apple , row2: avocado, row 3: banana, row 4: orange
 cm = confusion_matrix(y_test_enc, y_pred)
-print(cm)
+# print(cm)
 print("\nClassification Report:")
 print(classification_report(y_test_enc, y_pred, target_names=le.classes_))
+
+# Confusion Matrix with matplotlib
+plt.imshow(cm)
+plt.xticks(range(len(le.classes_)), le.classes_)
+plt.yticks(range(len(le.classes_)), le.classes_)
+
+for i in range(len(cm)):
+    for j in range(len(cm)):
+        plt.text(j, i, cm[i][j], ha='center', va='center')
+
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.show()
