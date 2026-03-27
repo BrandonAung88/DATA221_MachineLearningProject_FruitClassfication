@@ -1,6 +1,8 @@
-import os
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+#import os
+#os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
+#imports
+import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,11 +17,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #print(f"Using device: {device}")
 #print(f"Number of GPUs: {torch.cuda.device_count()}")
-print("Worker Initiated")
+#print("Worker Initiated")
 
 # Hyperparameters
 BATCH_SIZE = 128
-EPOCHS = 5
+EPOCHS = 50
 LEARNING_RATE = 3e-4
 PATCH_SIZE = 10
 IMAGE_SIZE = 100
@@ -113,7 +115,6 @@ def train(model, loader, optimizer, criterion):
         loss = criterion(out, y)
         loss.backward()
         optimizer.step()
-
         total_loss += loss.item() * x.size(0)
         correct += (out.argmax(1) == y).sum().item()
     return total_loss / len(loader.dataset), correct / len(loader.dataset)
@@ -131,16 +132,15 @@ def evaluate(model, loader):
 
 if __name__ == "__main__":
 
-        
     train_ds = datasets.ImageFolder("model/data/fruits-360/Training", transform=preprocess)
     test_ds    = datasets.ImageFolder("model/data/fruits-360/Test",     transform=preprocess)
 
     NUM_CLASSES = len(train_ds.classes)
 
     print('trainLoad')
-    train_loader = DataLoader(train_ds, batch_size=64, shuffle=True, num_workers=8, pin_memory=True)
+    train_loader = DataLoader(train_ds, batch_size=64, shuffle=True, num_workers=11, pin_memory=True)
     print('testLoad')
-    test_loader  = DataLoader(test_ds,  batch_size=64, shuffle=False, num_workers=8, pin_memory=True)
+    test_loader  = DataLoader(test_ds,  batch_size=64, shuffle=False, num_workers=11, pin_memory=True)
 
     print(f"Classes : {len(train_ds.classes)}")
     print(f"Train   : {len(train_ds):,}   |  Test: {len(test_ds):,}")
@@ -155,13 +155,36 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     # Training
     train_accuracies, test_accuracies = [], []
+    best_acc = 0
     for epoch in range(EPOCHS):
+        
+
         print(f"Epoch {epoch+1}/{EPOCHS} started.")
+        epoch_start = time.time()
         train_loss, train_acc = train(model, train_loader, optimizer, criterion)
+        
         test_acc = evaluate(model, test_loader)
         train_accuracies.append(train_acc)
         test_accuracies.append(test_acc)
-        print(f"Epoch {epoch+1}/{EPOCHS}, Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}, Test Acc: {test_acc:.4f}")
+
+        epoch_time = time.time() - epoch_start
+
+        if test_acc > best_acc:
+            best_acc = test_acc
+            torch.save({
+                "epoch": epoch,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "test_acc": test_acc,
+            }, "vit_best_checkpoint.pth")
+
+        print(f"Epoch {epoch+1}/{EPOCHS}, Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}, Test Acc: {test_acc:.4f} Epoch Time: {epoch_time:.1f}s |")
+
+
+
+
+    torch.save(model.state_dict(), "vit_fruits.pth")
+    print("Model saved to vit_fruits.pth")
 
     # Plot accuracy
     plt.plot(train_accuracies, label='Train Accuracy')
