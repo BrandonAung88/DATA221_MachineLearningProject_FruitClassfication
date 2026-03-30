@@ -61,7 +61,13 @@ testing_labels_encoded = label_encoder.transform(testing_labels)
 
 # Train model random_state is set to 42 just to make it a fixed seed so results are reproducible.
 # Without random_state, every time you run the command you might get slightly different trees and therefore slightly different predictions.
-decision_tree_classifier = DecisionTreeClassifier(random_state=42)
+decision_tree_classifier = DecisionTreeClassifier(
+    criterion='entropy',
+    max_depth=10,
+    min_impurity_decrease=0.0,
+    min_samples_split=2,
+    random_state=42
+)
 decision_tree_classifier.fit(training_features, training_labels_encoded)
 
 predicted_testing_labels = decision_tree_classifier.predict(testing_features)
