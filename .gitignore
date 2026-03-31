@@ -4,3 +4,4 @@ vit_fruits.pth
 vitBestCheckpoint.pth
 vitFruits.pth
 training_curves.png
+*.pth
