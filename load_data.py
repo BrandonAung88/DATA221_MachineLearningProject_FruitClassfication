@@ -21,8 +21,8 @@ def build_dataset_index(data_dir=None):
         if data_dir is None
         else Path(data_dir).expanduser().resolve()
     )
-    train_dir = root / "Training"
-    test_dir = root / "Test"
+    train_dir = root / "Project_Train"
+    test_dir = root / "Project_Test"
 
     raw_class_names = sorted(
         (f.name for f in train_dir.iterdir() if f.is_dir()), key=str.casefold
