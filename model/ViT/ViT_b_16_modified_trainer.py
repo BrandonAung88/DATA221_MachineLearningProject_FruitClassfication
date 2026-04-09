@@ -2,28 +2,31 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-import torchvision.models as models
-import numpy as np
 import matplotlib.pyplot as plt
 import timm
-from torch.amp import autocast, GradScaler
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import time
 import re
-from PIL import Image
 from tqdm import tqdm
-import os
+
 from sklearn.metrics import classification_report, confusion_matrix
 import seaborn as sns
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 # Hyperparameters
+
+#Boolean to determine if user wants to continue training an existing model (True) or train new model from scratch (False).
+FROM_CHECKPOINT = True
+#Filepath to existing model - Same file path is used to choose model used in validation mode.
 CKPTFILE = 'projSet4Model-20E.pth'
+
 SAVEFILE = 'projSet4'
 VALIDATE = True
-FROM_CHECKPOINT = True
+
+
 BATCH_SIZE = 128
 EPOCHS = 20
 LEARNING_RATE = 3e-4
@@ -31,21 +34,26 @@ DECAY = 0.05
 DROP_RATE = 0.1
 USE_BF16 = False
 AMP_DTYPE = torch.bfloat16 if USE_BF16 else torch.float16
+
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD  = [0.229, 0.224, 0.225]
+
 
 trainPreprocess = transforms.Compose([
     transforms.RandomHorizontalFlip(),
     transforms.RandomRotation(15),
-    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+    transforms.ColorJitter(brightness=0.2,
+                            contrast=0.2,
+                            saturation=0.2,
+                            hue=0.1),
     transforms.ToTensor(),
-    transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),])
+    transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+    ])
+
 preprocess = transforms.Compose([
-    
     transforms.ToTensor(),
-    transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),])
-
-
+    transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+    ])
 scaler = torch.amp.GradScaler("cuda", enabled=not USE_BF16)
 ###################################################################################################################################   
 def strip_trailing_number(s):
@@ -164,9 +172,11 @@ if __name__ == "__main__":
     
     print(f"Using device: {device}")
     print(f"Number of GPUs: {torch.cuda.device_count()}")
+
     if not VALIDATE:
-        trainDS = datasets.ImageFolder("model/data/fruits-360/Training", transform=trainPreprocess)
-        testDS = datasets.ImageFolder("model/data/fruits-360/Test", transform=preprocess)
+
+        trainDS = datasets.ImageFolder("../../data/fruits-360/Training", transform=trainPreprocess)
+        testDS = datasets.ImageFolder("../../data/fruits-360/Test", transform=preprocess)
 
         coarse_labels = sorted(set(strip_trailing_number(c) for c in trainDS.classes))
         coarse_to_idx = {c: i for i, c in enumerate(coarse_labels)}
@@ -204,12 +214,14 @@ if __name__ == "__main__":
         trainStart = time.time()
 
         for epoch in range(EPOCHS):
+
             epoch_start = time.time()
             print(f"Epoch {epoch+1}/{EPOCHS} started.")
             trainLoss, trainAcc = train(model, trainLoader, optimizer, criterion, device)
             testLoss, testAcc = evaluate(model, testLoader, criterion, device)
             
             scheduler.step()      
+
 
             trainAccs.append(trainAcc)
             testAccs.append(testAcc)
@@ -243,13 +255,15 @@ if __name__ == "__main__":
         plt.tight_layout()
         plt.savefig("training_curves.png")
         plt.show()
+
     else:
-        validateDS = datasets.ImageFolder("model/data/fruits-360/Test", transform=trainPreprocess)
+
+        validateDS = datasets.ImageFolder("../data/fruits-360/Test", transform=trainPreprocess)
         coarse_labels = sorted(set(strip_trailing_number(c) for c in validateDS.classes))
         coarse_to_idx = {c: i for i, c in enumerate(coarse_labels)}
 
         remap_dataset(validateDS, coarse_to_idx)
-    
+
         validateLoader = DataLoader(validateDS, batch_size=BATCH_SIZE, shuffle=True, num_workers=1, pin_memory=True,persistent_workers=True, prefetch_factor=4)
 
 

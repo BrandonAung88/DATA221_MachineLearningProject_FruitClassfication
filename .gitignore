@@ -1,7 +1,9 @@
-model/data/fruits-360
+data/fruits-360
 vit_best_checkpoint.pth
 vit_fruits.pth
 vitBestCheckpoint.pth
 vitFruits.pth
 training_curves.png
 *.pth
+data/__pycache__
+model\manual_ViT_trainer.py
