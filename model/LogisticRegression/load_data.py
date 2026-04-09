@@ -17,7 +17,7 @@ def _normalize_class_key(label):
 
 def build_dataset_index(data_dir=None):
     root = (
-        Path(__file__).resolve().parent / "fruits-360"
+        Path(__file__).resolve().parents[2] / "data" / "fruits-360"
         if data_dir is None
         else Path(data_dir).expanduser().resolve()
     )
