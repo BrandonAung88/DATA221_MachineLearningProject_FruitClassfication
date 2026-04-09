@@ -7,3 +7,4 @@ training_curves.png
 *.pth
 data/__pycache__
 model\manual_ViT_trainer.py
+.DS_Store
