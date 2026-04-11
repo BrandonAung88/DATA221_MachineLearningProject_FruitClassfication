@@ -16,17 +16,16 @@ import seaborn as sns
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Hyperparameters
-
-#Boolean to determine if user wants to continue training an existing model (True) or train new model from scratch (False).
-FROM_CHECKPOINT = True
-#Filepath to existing model - Same file path is used to choose model used in validation mode.
-CKPTFILE = 'projSet4Model-20E.pth'
-
-SAVEFILE = 'projSet4'
+#Boolean to determine if running the program will train a model or if it will validate a model.
 VALIDATE = True
+#Boolean to determine if user wants to continue training an existing model (True) or train new model from scratch (False).
+FROM_CHECKPOINT = False
+#Filepath to existing model - Same file path is used to choose model used in validation mode.
+CKPTFILE = 'fullSetbestCKPT-30E.pth'
+VALMODEL = 'projSet4Model-20E.pth'
+SAVEFILE = 'ViT-Model'
 
-
+# Hyperparameters
 BATCH_SIZE = 128
 EPOCHS = 20
 LEARNING_RATE = 3e-4
@@ -34,11 +33,11 @@ DECAY = 0.05
 DROP_RATE = 0.1
 USE_BF16 = False
 AMP_DTYPE = torch.bfloat16 if USE_BF16 else torch.float16
+SCALER = torch.amp.GradScaler("cuda", enabled=not USE_BF16)
 
+#preprocess
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD  = [0.229, 0.224, 0.225]
-
-
 trainPreprocess = transforms.Compose([
     transforms.RandomHorizontalFlip(),
     transforms.RandomRotation(15),
@@ -49,16 +48,16 @@ trainPreprocess = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
     ])
-
 preprocess = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
     ])
-scaler = torch.amp.GradScaler("cuda", enabled=not USE_BF16)
-###################################################################################################################################   
+
+
+#Removes number from class name. ex: "Apple 1" -> "Apple"
 def strip_trailing_number(s):
     return re.sub(r'\s*\d+$', '', s).strip()
-
+#Removes numbers from class names and condenses class groupings. 
 def remap_dataset(ds, coarse_to_idx):
     original_classes = ds.classes  # save before overwriting
     fine_to_coarse = {
@@ -70,7 +69,6 @@ def remap_dataset(ds, coarse_to_idx):
     ds.classes = sorted(coarse_to_idx, key=coarse_to_idx.get)  # ← fixes .classes
     ds.class_to_idx = coarse_to_idx
 
-######################################################################################################################################  
 # Training loop
 def train(model, loader, optimizer, criterion, device):
     
@@ -78,6 +76,7 @@ def train(model, loader, optimizer, criterion, device):
     totalLoss, correct, total = 0, 0, 0
     data_time, compute_time = 0, 0
     t0 = time.time()
+
     for images, labels in loader:
         data_time += time.time() - t0
         images = images.to(device, non_blocking=True)
@@ -91,16 +90,17 @@ def train(model, loader, optimizer, criterion, device):
             loss = criterion(outputs, labels)
 
         if USE_BF16:
-            loss.backward()                                   # bf16: no scaler needed
+            loss.backward()                               
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
-        else:
-            scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
-            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            scaler.step(optimizer)
-            scaler.update()
 
+        else:
+            SCALER.scale(loss).backward()
+            SCALER.unscale_(optimizer)
+            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            SCALER.step(optimizer)
+            SCALER.update()
+        
         compute_time += time.time() - t1
         t0 = time.time()
 
@@ -108,9 +108,11 @@ def train(model, loader, optimizer, criterion, device):
         preds = outputs.argmax(dim=1)
         correct += (preds == labels).sum().item()
         total += images.size(0)
+
     print(f"Data: {data_time:.1f}s | Compute: {compute_time:.1f}s")
     return totalLoss / total, correct / total
-# Evaluation loop
+
+# Evaluation loop - Evaluates the model on a dataset split without updating weights.
 def evaluate(model, loader, criterion, device):
     model.eval()
     totalLoss, correct, total = 0, 0, 0
@@ -119,7 +121,7 @@ def evaluate(model, loader, criterion, device):
         for images, labels in loader:
             images, labels = images.to(device), labels.to(device)
 
-            with torch.autocast("cuda", dtype=AMP_DTYPE):                              # ← AMP here too
+            with torch.autocast("cuda", dtype=AMP_DTYPE):          
                 outputs = model(images)
                 loss = criterion(outputs, labels)
 
@@ -130,6 +132,7 @@ def evaluate(model, loader, criterion, device):
 
     return totalLoss / total, correct / total
 
+#Performs a full validation pass with detailed per-class reporting.
 def validate(model, loader, criterion, device, class_names):
     model.eval()
     all_preds, all_labels = [], []
@@ -144,6 +147,7 @@ def validate(model, loader, criterion, device, class_names):
 
             totalLoss += loss.item() * images.size(0)
             preds = outputs.argmax(dim=1)
+            # Collect predictions and true labels 
             all_preds.extend(preds.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
             total += images.size(0)
@@ -163,7 +167,7 @@ def validate(model, loader, criterion, device, class_names):
     plt.ylabel("True Label")
     plt.xlabel("Predicted Label")
     plt.tight_layout()
-    plt.savefig("confusion_matrix.png")
+    plt.savefig("model/ViT/confusion_matrix.png")
     plt.show()
 
     return all_preds, all_labels
@@ -175,8 +179,8 @@ if __name__ == "__main__":
 
     if not VALIDATE:
 
-        trainDS = datasets.ImageFolder("../../data/fruits-360/Training", transform=trainPreprocess)
-        testDS = datasets.ImageFolder("../../data/fruits-360/Test", transform=preprocess)
+        trainDS = datasets.ImageFolder("data/fruits-360/Training", transform=trainPreprocess)
+        testDS = datasets.ImageFolder("data/fruits-360/Test", transform=preprocess)
 
         coarse_labels = sorted(set(strip_trailing_number(c) for c in trainDS.classes))
         coarse_to_idx = {c: i for i, c in enumerate(coarse_labels)}
@@ -222,7 +226,6 @@ if __name__ == "__main__":
             
             scheduler.step()      
 
-
             trainAccs.append(trainAcc)
             testAccs.append(testAcc)
             trainLosses.append(trainLoss)
@@ -230,50 +233,49 @@ if __name__ == "__main__":
             
             epoch_time = time.time() - epoch_start
 
+             # Save checkpoint whenever a new best validation accuracy is achieved
             if testAcc > bestAcc:
                 bestAcc = testAcc
                 
-                torch.save(model.state_dict(), f"{SAVEFILE}bestCKPT-{EPOCHS}E.pth")
+                torch.save(model.state_dict(), f"model/ViT/{SAVEFILE}CKPT-{EPOCHS}E.pth")
 
                 print('Best accuracy checkpoint saved.')
             print(f"Epoch {epoch+1}/{EPOCHS}, Train Loss: {trainLoss:.4f}, Train Acc: {trainAcc:.4f}, Test Acc: {testAcc:.4f} | Epoch Time: {epoch_time:.1f}s")
-
         print(f"Total test: {((time.time() - trainStart)/60):.2f}m")
 
-        torch.save(model.state_dict(), f"{SAVEFILE}Model-{EPOCHS}E.pth")
+        # Save final model weights regardless of whether it was the best epoch
+        torch.save(model.state_dict(), f"model/ViT/{SAVEFILE}Model-{EPOCHS}E.pth")
 
+        # Plot and save loss and accuracy curves side by side
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-
         ax1.plot(trainLosses, label="Train Loss")
         ax1.plot(testLosses,   label="Val Loss")
         ax1.set_title("Loss"); ax1.legend()
-
         ax2.plot(trainAccs, label="Train Acc")
         ax2.plot(testAccs,   label="Val Acc")
         ax2.set_title("Accuracy"); ax2.legend()
-
         plt.tight_layout()
-        plt.savefig("training_curves.png")
+        plt.savefig("model/ViT/training_curves.png")
         plt.show()
 
     else:
 
-        validateDS = datasets.ImageFolder("../data/fruits-360/Test", transform=trainPreprocess)
+        #Loads validation dataSet
+        validateDS = datasets.ImageFolder("data/fruits-360/Validate", transform=trainPreprocess)
         coarse_labels = sorted(set(strip_trailing_number(c) for c in validateDS.classes))
         coarse_to_idx = {c: i for i, c in enumerate(coarse_labels)}
-
         remap_dataset(validateDS, coarse_to_idx)
-
         validateLoader = DataLoader(validateDS, batch_size=BATCH_SIZE, shuffle=True, num_workers=1, pin_memory=True,persistent_workers=True, prefetch_factor=4)
 
-
+        #loads model based on the VALMODEL filepath 
         model = timm.create_model("vit_base_patch16_224",
                                pretrained=False,
                                img_size=100,
                                patch_size=10,
                                num_classes=len(validateDS.classes))
-        model.load_state_dict(torch.load(f"{CKPTFILE}", map_location=device))
+        model.load_state_dict(torch.load(f"model/ViT/{VALMODEL}", map_location=device))
         model.to(device)
 
+        #runs validation and outputs confusion matrix
         criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
         preds, labels = validate(model, validateLoader, criterion, device, validateDS.classes)
